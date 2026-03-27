@@ -16,25 +16,39 @@ class Chromosome(BaseChromosome):
         global customers
         return customers[index]
 
-# Injection dans la classe Population (Remplace la classe Chromosome originale)
+# Injection dans la classe Population (Remplace la classe Chromosome originale et population.Chromosome devient la classe surchargée avec les vraies méthodes)
 population.Chromosome = Chromosome
 
+# Permet au user de choisir l'instance
 run_file_name = input("Enter run file name [default: C101_200]: ")
 if not run_file_name:
-    run_file_name = ga_params.run_file['name']
+    run_file_name = ga_params.run_file['name'] # Par défaut : 'C101_200'
+
+# Affiche le nom de l'instance en cours d'exécution
 print('Running: "' + run_file_name + '"')
 
+# Chargement des données de l'instance
 customers_input_read = csv_read(run_file_name, header_map=ga_params.run_file['header_map'])
-customers = [Deport(**customers_input_read[0])]
+
+# Le 1er client est le dépôt (index 0)
+customers = [Deport(**customers_input_read[0])] # crée un objet Deport en utilisant les valeurs du dictionnaire et ** : décompose le dictionnaire en arguments nommés
+# Pour chaque dictionnaire restant, crée un objet Customer
 customers += [Customer(**customer_dict) for customer_dict in customers_input_read]
 # for c in customers:
 #     print(c)
 # print(len(customers))
+# customers : [Deport, Customer1, Customer2, ..., CustomerN]
 
+# Pré-calcul des distances
 customers_distance_table = CustomerDistanceTable(customers)
 # print(str(customers_distance_table))
 
+# Initialisation de la population
 ga_pop = population.Population(chromosome_width=len(customers), run_file_name=run_file_name, **ga_params.population)
 # print(str(ga_pop))
+
+# Lance l'algorithme génétique
 best_chrome = ga_pop.evolve()
+
+#Affiche le meilleur résultat
 print(best_chrome)
