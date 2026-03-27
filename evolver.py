@@ -4,11 +4,11 @@ from nodes import Deport, Customer, CustomerDistanceTable
 from csv_reader import csv_read
 import ga_params
 
-
+#Surchage des méthodes get_distance et get_node la classe Cromosome
 class Chromosome(BaseChromosome):
     @staticmethod
     def get_distance(source: int, dest: int) -> float:
-        global customers_distance_table     # type: CustomerDistanceTable
+        global customers_distance_table     # type: CustomerDistanceTable, global car c'est un passage par var et non pas par val (donc python utilise l'objet globale et ne considere pas la variable comme une new var)
         return customers_distance_table.get_distance(source, dest)
 
     @staticmethod
@@ -16,7 +16,7 @@ class Chromosome(BaseChromosome):
         global customers
         return customers[index]
 
-
+# Injection dans la classe Population (Remplace la classe Chromosome originale)
 population.Chromosome = Chromosome
 
 run_file_name = input("Enter run file name [default: C101_200]: ")

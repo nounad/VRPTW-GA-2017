@@ -159,7 +159,11 @@ class Population(Reporter):
                     self.generation = self.genocide(self.generation)
             self.generation = self.next_gen()
             self.gen_index += 1
-        
+            
+            # ✅ Export final
+            if ga_params.export_spreadsheet:
+                self.report()  # Force un dernier report
+                
         return min(self.generation)
 
     def report(self, process_time=None):
@@ -172,7 +176,7 @@ class Population(Reporter):
             'std': np.std(self.generation),
             'process_time': process_time
         })
-        if self.gen_index % self.plot_x_div:
+        if self.gen_index % self.plot_x_div == 0:
             total_time = datetime.now() - self.total_start_time #Calculer le temps d'execution totale
             if ga_params.draw_plot:
                 self.plot_draw(x_axis=self.x_axis, y_axis=self.y_axis, latest_result=min(self.generation), total_time=total_time)
