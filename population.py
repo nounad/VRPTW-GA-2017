@@ -182,49 +182,37 @@ class Population(Reporter):
     def evolve(self) -> Chromosome:
         process_timer_start = datetime.now()
         while self.gen_index < ga_params.MAX_GEN:
-            # Vérification du moment de générer un rapport
-            if self.gen_index % self.gen_index_div == 0: # self.gen_index_div : fréquence des rapports (ex: 50)
-                # Calcul du temps écoulé
-                process_time = datetime.now() - process_timer_start
-                process_timer_start = datetime.now() # Réinitialise le chronomètre pour la prochaine période
-                if ga_params.print_benchmarks:
-                    # Affiche le temps nécessaire pour générer les gen_index_div générations
-                    print('### Process time of ' + str(self.gen_index_div) + ' generation: '
-                          + str(process_time))
-                self.report(process_time)
-                # Vérifie que le génocide est activé et que tous les chromosomes de la population sont identiques 
-                if self.genocide_ratio > 0 and min(self.generation).value == max(self.generation).value:
-                    self.generation = self.genocide(self.generation) # Remplace un pourcentage de la population par des individus aléatoires pour la rediversifier
+            # Affichage du progrès pour toutes les générations
+            best_val = min(self.generation).value
+            worst_val = max(self.generation).value
+            avg_val = sum(self.generation) / len(self.generation)
+            print(f'Gen {self.gen_index}: Best={best_val:.2f} | Avg={avg_val:.2f} | Worst={worst_val:.2f}')
+            
+            # Vérifie que le génocide est activé et que tous les chromosomes de la population sont identiques 
+            if self.genocide_ratio > 0 and min(self.generation).value == max(self.generation).value:
+                self.generation = self.genocide(self.generation) # Remplace un pourcentage de la population par des individus aléatoires pour la rediversifier
             # Création de la génération suivante        
             self.generation = self.next_gen()
             self.gen_index += 1
-        # Une fois la boucle terminée, retourne le meilleur chromosome 
-        return min(self.generation)
-
-    # Génère un rapport à intervalles réguliers (surcharge la méthode de la classe mère Raporter)
-    def report(self, process_time=None):
-        # Ajout des données de la génération courante
-        self.x_axis.append(self.gen_index) # Liste qui stocke les numéros de génération courante
-        # Ajout de dictionnaire contenant les statistiques de la génération
+        
+        # Collecte les données finales (une seule fois à la fin)
+        total_time = datetime.now() - process_timer_start
+        self.x_axis.append(self.gen_index)
         self.y_axis.append({ 
             'best': min(self.generation),
             'worst': max(self.generation),
             'average': sum(self.generation) / len(self.generation),
-            'std': np.std(self.generation), # écart-type (mesure de diversité de la population)
-            'process_time': process_time
+            'std': np.std(self.generation),
+            'process_time': total_time
         })
-        # Définir la fréquence d'export
-        if self.gen_index % self.plot_x_div == 0:
-            total_time = datetime.now() - self.total_start_time #Calculer le temps d'execution totale
-            # Affichage des resultats
-            if ga_params.draw_plot:
-                self.plot_draw(x_axis=self.x_axis, y_axis=self.y_axis, latest_result=min(self.generation), total_time=total_time)
-            if ga_params.export_spreadsheet:
-                self.export_spreadsheet(x_axis=self.x_axis, y_axis=self.y_axis)
-            
-            # Vide les listes après l'export
-            self.x_axis = []
-            self.y_axis = []
+        
+        # Export Excel et graphiques une seule fois à la fin
+        if ga_params.export_spreadsheet:
+            best_solution = min(self.generation)
+            self.export_spreadsheet_final(best_solution=best_solution)
+        
+        # Une fois la boucle terminée, retourne le meilleur chromosome 
+        return min(self.generation)
 
     # Intervient quand la population est trop homogène en remplaceant une partie de la population par de nouveaux chromosomes aléatoires
     def genocide(self, generation: List_Chromosome):
@@ -241,6 +229,17 @@ class Population(Reporter):
         # Mélange de qualité (survivants) et de diversité (nouveaux)
         return survivors + new_gen
 
+    # Export final unique avec rapport détaillé
+    def export_spreadsheet_final(self, best_solution):
+        """Wrapper pour appeler la nouvelle méthode de rapport final du Reporter"""
+        total_time = datetime.now() - self.total_start_time
+        generation_count = self.gen_index
+        super(Population, self).export_spreadsheet_final(
+            best_solution=best_solution,
+            total_time=total_time,
+            generation_count=generation_count
+        )
+
     def __str__(self):
         pop_str = "Generation:" + str(self.gen_index) + '\n'
         for i, chromosome in enumerate(self.generation):
@@ -249,3 +248,7 @@ class Population(Reporter):
 
     def __repr__(self):
         return self.__str__()
+    
+    
+    
+    

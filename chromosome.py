@@ -21,10 +21,11 @@ class Chromosome:
     current_load = None         # int
     current_distance = None     # float, Distance parcourue par le véhicule courant (ne doit pas depasser 400km)
     elapsed_time = None         # float, Temps écoulé sur le véhicule courant
-    max_elapsed_time = None     # float, Temps max passé par un véhicule
     distance_table = None       # type: list
 
     higher_value_fitter = False
+    
+    vehicles_timings = None # [[]]  timings par véhicule, par client
 
     #Initialisation de la route (solution candidate)
     def __init__(self, route: iter): # route doit être itérable (objet que l’on peut parcourir avec une boucle comme list, tuple, set ...)
@@ -41,8 +42,9 @@ class Chromosome:
         self.current_load = 0
         self.current_distance = 0
         self.elapsed_time = 0
-        self.max_elapsed_time = 0
-
+        
+        self.vehicles_timings = [[]]
+        
     #Retourne la distance entre 2 noeuds à partir des index
     @staticmethod
     def get_distance(source: int, dest: int) -> float:
@@ -96,13 +98,14 @@ class Chromosome:
         # Vérifier que le service commence avant due_time
         if service_start > dest_customer.due_time:
             return False
-
+        
+        
         # Vérifier que le retour au dépôt est possible après le service
         return_time = self.get_travel_time(self.get_distance(dest, 0))
         deport_due_time = self.get_node(0).due_time
         if service_start + dest_customer.service_time + return_time > deport_due_time:
             return False
-
+        
         return True
     
     #Vérifier si la demande du noeud destination accumulée à la charge courante depasse la capacité du véhicule 
@@ -124,12 +127,10 @@ class Chromosome:
         # Vérifier que aller chez dest ET revenir au dépôt est faisable
         return self.current_distance + distance + return_distance <= ga_params.vehicle_autonomy
 
-    # Retourne le coût liée au nombre de véhicule + temps max du depot
+    # Retourne le coût liée au nombre de véhicules
     @staticmethod
-    def get_vehicle_count_preference_cost(vehicles_count: int, deport_working_hours: int) -> float:
-        # less_vehicles_preference * (vehicles_count) + less_deport_working_hours * (deport_working_hours)
-        # vehicles_count_over_deport_hours_preference = less_vehicles_preference / less_deport_working_hours
-        return ga_params.vehicles_count_over_deport_hours_preference * vehicles_count + deport_working_hours
+    def get_vehicle_count_preference_cost(vehicles_count: int) -> float:
+        return ga_params.vehicles_count_over_deport_hours_preference * vehicles_count 
 
     # Déplace le véhicule d'un noeud à l'autre (aprés fin de service)
     def move_vehicle(self, source: int, dest: int, distance: float=None):
@@ -138,7 +139,6 @@ class Chromosome:
         self.total_travel_dist += distance
         self.current_distance += distance
         self.elapsed_time += self.get_travel_time(distance)
-        self.max_elapsed_time = max(self.elapsed_time, self.max_elapsed_time)
         self.vehicles_routes[-1].append(dest)
         if dest == 0:
             # Retour au dépôt : réinitialiser charge et distance courante
@@ -160,12 +160,14 @@ class Chromosome:
         self.elapsed_time = 0
         self.current_load = 0
         self.current_distance = 0
+        
+        self.vehicles_timings.append([]) 
 
     # Calculer la valeur de la fonction objective
     def get_cost_score(self) -> float:
         """
         Calcule la valeur de la fonction objective :
-        f = α × distance_totale + β × nb_véhicules + temps_max_dépôt
+        f = α × distance_totale + β × nb_véhicules
 
         Pour chaque client dans la route :
         1. Vérifier capacité + autonomie (look-ahead dépôt) + fenêtre de temps
@@ -192,15 +194,29 @@ class Chromosome:
                 # Déplacer le véhicule vers dest
                 self.move_vehicle(source, dest, distance)
 
+                # Temps d'arrivée chez le client 
+                arrival   = self.elapsed_time
                 # Ajouter le temps d'attente si arrivée avant ready_time
                 waiting_time = self.calculate_waiting_time(dest, self.elapsed_time)
+                #Debut de service
                 self.elapsed_time += waiting_time
+                start_svc = self.elapsed_time 
 
                 # Ajouter le temps de service
                 dest_customer = self.get_node(dest)
                 self.elapsed_time += dest_customer.service_time
-                self.max_elapsed_time = max(self.elapsed_time, self.max_elapsed_time)
-
+                # Temps de départ du client 
+                departure = self.elapsed_time
+                
+                # Ajouter les horaires des clients aux vehicules timings
+                self.vehicles_timings[-1].append({            # ← AJOUT
+                    'node': dest,
+                    'arrival': round(arrival, 2),
+                    'ready_time': dest_customer.ready_time,
+                    'due_time': dest_customer.due_time,
+                    'departure': round(departure, 2),
+                })
+                
             else:
                 # Contrainte violée → retour dépôt + nouveau véhicule
                 self.move_vehicle(source, 0)
@@ -215,25 +231,33 @@ class Chromosome:
 
                 if can_go_from_depot:
                     self.move_vehicle(0, dest, distance_depot)
+                    
+                    # Temps d'arrivée chez le client 
+                    arrival   = self.elapsed_time
 
                     # Ajouter le temps d'attente si arrivée avant ready_time
                     waiting_time = self.calculate_waiting_time(dest, self.elapsed_time)
                     self.elapsed_time += waiting_time
+                    # Temps de debut de service
+                    start_svc = self.elapsed_time 
 
                     # Ajouter le temps de service
                     dest_customer = self.get_node(dest)
                     self.elapsed_time += dest_customer.service_time
-                    self.max_elapsed_time = max(self.elapsed_time, self.max_elapsed_time)
-
-                else:
-                    # Cas extrême : client inatteignable même depuis le dépôt
-                    # → forcer le déplacement pour ne pas bloquer la simulation
-                    self.move_vehicle(0, dest, distance_depot)
+                    #Temps de depart 
+                    departure = self.elapsed_time
+                    
+                    # Ajouter les horaires des clients aux vehicules timings
+                    self.vehicles_timings[-1].append({     
+                        'node': dest,
+                        'arrival': round(arrival, 2),
+                        'ready_time': dest_customer.ready_time,
+                        'due_time': dest_customer.due_time,
+                        'departure': round(departure, 2),
+                    })
 
         total_travel_cost = Chromosome.get_travel_cost(self.total_travel_dist)
-        total_vehicles_and_deport_working_hours_cost = self.get_vehicle_count_preference_cost(
-            vehicles_count=self.vehicles_count,
-            deport_working_hours=self.max_elapsed_time)
+        total_vehicles_and_deport_working_hours_cost = self.get_vehicle_count_preference_cost(vehicles_count=self.vehicles_count)
         return total_travel_cost + total_vehicles_and_deport_working_hours_cost
     
     # Prépare les coordonnées (x, y) de chaque tournée pour l'affichage graphique dans "report.py"
@@ -297,7 +321,21 @@ class Chromosome:
     def __str__(self):
         return str(self.route) + ", value= " + str(self.value) + ", vehicles_count= " + str(self.vehicles_count) \
                + ", total deport visits=" + str(self.route_rounds) \
-               + ", deport working hours=" + str(self.max_elapsed_time) + ", routes= " + str(self.vehicles_routes)
+               + ", routes= " + str(self.vehicles_routes)
+               
 
     def __repr__(self):
         return self.__str__()
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    

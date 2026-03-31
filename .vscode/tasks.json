@@ -1,0 +1,10 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Test GA - Output Final Report",
+			"type": "shell",
+			"command": "cd \"d:\\ISI\\PFE 2\\Docs\\Code\\VRPTW-GA-2017\" && python -c \"import ga_params; ga_params.MAX_GEN = 5; exec(open('evolver.py').read())\""
+		}
+	]
+}

@@ -235,3 +235,79 @@ def crossover_pmx(parent1: list, parent2: list) -> (list, list):
     # child1, child2 = crossover_pmx(p1, p2)
     # print(child1)
     # print(child2)
+    
+# Découpe une liste en sous-listes. 
+def split_routes(chromosome: list, num_splits: int = 3) -> list:
+    """
+    Découpe un chromosome en sous-routes (simulation VRP)
+    """
+    size = len(chromosome)
+    # Choisit aléatoirement num_splits positions de découpe entre 1 et size-1, les trie par ordre croissant.
+    split_points = sorted(np.random.choice(range(1, size), num_splits, replace=False)) # Exp : range(1,8) = [1,2,3,4,5,6,7], choisir 3 valeurs → [2, 5, 6] → trié → [2, 5, 6]
+    
+    routes = []
+    prev = 0
+    for sp in split_points:
+        routes.append(chromosome[prev:sp])
+        prev = sp # Exemple : prev=0, sp=2 → chromosome[0:2] = [1,2] → routes = [[1,2]]
+    routes.append(chromosome[prev:])
+    
+    return routes # Exemple : [[1,2], [3,4,5], [6], [7,8]]
+
+#  Croisement basé sur les routes
+def crossover_rbx(parent1: list, parent2: list) -> (list, list):
+    """
+    Route-Based Crossover (RBX)
+    """
+    if len(parent1) != len(parent2):
+        raise Exception("Crossover error: Parents length are not equal")
+
+    size = len(parent1)
+
+    # Fonction interne pour générer un enfant à partir de deux parents.
+    def generate_child(p1, p2):
+        """
+        Exemple :
+        Parent1:     1   2   3   4   5   6   7   8
+        Parent2:     8   7   6   5   4   3   2   1
+        
+        1. Découper en routes
+        Parent1 → [[1, 2], [3, 4, 5], [6], [7, 8]]
+            
+        2. Sélectionner aléatoirement certaines routes
+        num_selected = 2  # nombre de routes à sélectionner
+        selected_indices = [0, 2]  # indices des routes sélectionnées
+        => ([1, 2], [6]) donc selected_nodes = [1, 2, 6]
+            
+        3. Construire enfant avec ces routes
+        Child : [1, 2, 6]
+            
+        4. Compléter avec parent2
+        Parcourir parent2 et ajouter les noeuds qui ne sont pas déjà dans child :
+        Child : [1, 2, 6, 8, 7, 5, 4, 3] 
+        """
+        # 1. Découper en routes
+        routes_p1 = split_routes(p1)
+
+        # 2. Sélectionner aléatoirement certaines routes
+        num_selected = np.random.randint(1, len(routes_p1) + 1)
+        selected_indices = np.random.choice(len(routes_p1), num_selected, replace=False)
+
+        selected_nodes = []
+        for idx in selected_indices:
+            selected_nodes.extend(routes_p1[idx])
+
+        # 3. Construire enfant avec ces routes
+        child = selected_nodes.copy()
+
+        # 4. Compléter avec parent2
+        for node in p2:
+            if node not in child:
+                child.append(node)
+
+        return child
+
+    child1 = generate_child(parent1, parent2)
+    child2 = generate_child(parent2, parent1)
+
+    return child1, child2

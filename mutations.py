@@ -44,3 +44,31 @@ def mutation_scramble(chromosome: list) -> list:
     shuffle(scrambled)
 
     return chromosome[:slice_point_1] + scrambled + chromosome[slice_point_2:]
+
+
+def mutation_insertion(chromosome: list) -> list:
+    """
+    Déplace un client vers une autre position
+    Chromosome initiale : [1, 2, 3, 4, 5]
+    
+    i = 2 (client 3)
+    j = 4 (position du client 5)
+    
+    Enlever le client 3 : [1, 2, 4, 5]
+    Insérer le client 3 à la position 4 : [1, 2, 4, 5, 3]
+    """
+    size = len(chromosome)
+
+    i = randint(0, size - 1)
+    j = randint(0, size - 1)
+
+    while j == i:
+        j = randint(0, size - 1)
+
+    ch = chromosome.copy()
+    node = ch.pop(i)
+    ch.insert(j, node)
+
+    return ch
+
+
